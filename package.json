@@ -2,11 +2,14 @@
   "name": "dashboardd",
   "private": true,
   "version": "0.0.0",
+  "homepage": "https://NoeSaltos.github.io/dashboardd",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d dist",
     "preview": "vite preview"
   },
   "dependencies": {
