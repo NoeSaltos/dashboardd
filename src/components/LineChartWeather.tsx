@@ -1,19 +1,15 @@
 import Paper from '@mui/material/Paper';
 import { LineChart } from '@mui/x-charts/LineChart';
 
-const uData = [4000, 3000, 2000, 2780, 1890, 2390, 3490];
-const pData = [2400, 1398, 9800, 3908, 4800, 3800, 4300];
-const xLabels = [
-    'Page A',
-    'Page B',
-    'Page C',
-    'Page D',
-    'Page E',
-    'Page F',
-    'Page G',
-];
+interface LineChartWeatherProps {
+    data: { date: string; average: number }[]; // Datos con fecha y promedio
+    variable: string; // Variable seleccionada
+}
 
-export default function LineChartWeather() {
+export default function LineChartWeather({ data, variable }: LineChartWeatherProps) {
+    // Extraer datos específicos según la variable seleccionada
+    const chartData = data.map(item => item.average); // Valores promedio
+    const xLabels = data.map(item => item.date);  // Fecha y hora
     return (
         <Paper
             sx={{
@@ -25,13 +21,10 @@ export default function LineChartWeather() {
 
             {/* Componente para un gráfico de líneas */}
             <LineChart
-                width={400}
-                height={250}
-                series={[
-                    { data: pData, label: 'pv' },
-                    { data: uData, label: 'uv' },
-                ]}
-                xAxis={[{ scaleType: 'point', data: xLabels }]}
+                  width={800}
+                  height={300}
+                  series={[{ data: chartData, label: `Promedio de ${variable}` }]}
+                  xAxis={[{ scaleType: 'point', data: xLabels }]}
             />
         </Paper>
     );

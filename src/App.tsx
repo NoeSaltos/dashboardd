@@ -10,7 +10,10 @@ import IndicatorWeather from "./components/IndicatorWeather";
 import TableWeather from "./components/TableWeather";
 import ControlWeather from "./components/ControlWeather";
 import LineChartWeather from "./components/LineChartWeather";
+import IndicatorGeneral from "./components/IndicatorGeneral";
 import Item from './interface/Item';
+import ItemChart from './interface/ItemChart';
+import DataGeneral from './interface/DataGeneral';
 
 interface Indicator {
   title?: String;
@@ -21,9 +24,11 @@ interface Indicator {
 function App() {
   {/* Variable de estado y función de actualización */ }
   let [indicators, setIndicators] = useState<Indicator[]>([])
-
+  const [selectedVariable, setSelectedVariable] = useState<string>('precipitation'); // Estado global de la variable seleccionada
+  let [chartItems, setChartItems] = useState<ItemChart[]>([]) //Grafico
   let [items, setItems] = useState<Item[]>([])
   let [owm, setOWM] = useState(localStorage.getItem("openWeatherMap"))
+  const [weatherData, setWeatherData] = useState<DataGeneral | null>(null);
 
   {/* Hook: useEffect */ }
   useEffect(() => {
@@ -75,6 +80,34 @@ function App() {
 
         let dataToIndicators: Indicator[] = new Array<Indicator>();
         let dataToItems: Item[] = [];
+        let dataForChart: ItemChart[] = [];
+
+        //Datos para el Indicador General---------------------------
+        let city = xml.getElementsByTagName("name")[0]?.textContent || "";
+        let country = xml.getElementsByTagName("country")[0]?.textContent || "";
+        let temperatureValue = xml.querySelector("temperature")?.getAttribute("value") || "";
+        let feelsLikeValue = xml.querySelector("feels_like")?.getAttribute("value") || "";
+        let symbolVar = xml.querySelector("symbol")?.getAttribute("name") || "N/A";
+        let symbolImg = xml.querySelector("symbol")?.getAttribute("var") || "N/A";
+        let conditionUrl = symbolVar ? `https://openweathermap.org/img/wn/${symbolImg}.png` : "";
+
+        const temperatureCelsius = Math.round(parseFloat(temperatureValue) - 273.15).toString();
+        const feelsLikeCelsius = Math.round(parseFloat(feelsLikeValue) - 273.15);
+
+
+        setWeatherData({
+          city: `${city}, ${country}`,
+          date: new Date().toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long", year: "numeric" }),
+          temperature: temperatureCelsius.toString(), // Convertir a string
+          minTemperature: (parseFloat(temperatureCelsius) - 2).toFixed(2),
+          description: symbolVar,
+          imagen:conditionUrl,
+          feelsLike: feelsLikeCelsius.toString(), 
+        });
+        
+        
+
+        //----------------------------------------------------------
         {/* 
              Análisis, extracción y almacenamiento del contenido del XML 
              en el arreglo de resultados
@@ -98,7 +131,8 @@ function App() {
 
            {/* Procesamiento de etiquetas <time> */}
          let timeNodes = xml.getElementsByTagName("time");
-         for (let i = 0; i < Math.min(6, timeNodes.length); i++) {
+
+         for (let i = 0; i < Math.min(5, timeNodes.length); i++) {
            let timeNode = timeNodes[i];
 
            // Obtener atributos y valores de etiquetas hijas
@@ -106,8 +140,18 @@ function App() {
            let to = timeNode.getAttribute("to") || "";
            let precipitationProbability = timeNode.querySelector("precipitation")?.getAttribute("probability") || "N/A";
           let humidityValue = timeNode.querySelector("humidity")?.getAttribute("value") || "N/A";
-
+          let temperatureValue = timeNode.querySelector("temperature")?.getAttribute("value")|| "N/A";
+          let temperatureCelsius = temperatureValue 
+  ? `${(parseFloat(temperatureValue) - 273.15).toFixed(2)} °C` 
+  : "Temperatura no disponible";
            let cloudsValue = timeNode.querySelector("clouds")?.getAttribute("all") || "N/A";
+          // Obtener el atributo "var" del elemento symbol
+  let symbolVar = timeNode.querySelector("symbol")?.getAttribute("var") || "";
+
+
+  // Construir la URL del ícono (ejemplo basado en OpenWeatherMap)
+  let conditionUrl = symbolVar ? `https://openweathermap.org/img/wn/${symbolVar}.png` : "";
+
 
            // Agregar datos al arreglo temporal
            dataToItems.push({
@@ -118,13 +162,36 @@ function App() {
             precipitation: precipitationProbability,
             humidity: humidityValue,
             clouds: cloudsValue,
+            temperature: temperatureCelsius,
+            condition: conditionUrl,
+            
         });
+
          }
+
+         // **Segundo bucle**: Todos los datos para el gráfico
+        for (let i = 0; i < timeNodes.length; i++) {
+          let timeNode = timeNodes[i];
+          let from = timeNode.getAttribute("from") || "";
+          let precipitationProbability = timeNode.querySelector("precipitation")?.getAttribute("probability") || "N/A";
+          let humidityValue = timeNode.querySelector("humidity")?.getAttribute("value") || "N/A";
+          let cloudsValue = timeNode.querySelector("clouds")?.getAttribute("all") || "N/A";
+
+          dataForChart.push({
+              dateS: from.split("T")[0], // Fecha
+              precipitation: precipitationProbability,
+            humidity: humidityValue,
+            clouds: cloudsValue,
+          });
+      }
+
 
 
         {/* Modificación de la variable de estado mediante la función de actualización */ }
         setIndicators(dataToIndicators)
         setItems(dataToItems);
+        setChartItems(dataForChart);  // Datos para el gráfico (todos los nodos)
+        
 
       }
 
@@ -134,6 +201,8 @@ function App() {
 
   }, [owm])
 
+ 
+
 
 
   let renderIndicators = () => {
@@ -141,7 +210,7 @@ function App() {
     return indicators
       .map(
         (indicator, idx) => (
-          <Grid key={idx} size={{ xs: 12, md: 3, xl: 3 }}>
+          <Grid key={idx} size={{ xs: 12, md: 6, xl: 6 }}>
             <IndicatorWeather
               title={indicator["title"]}
               subtitle={indicator["subtitle"]}
@@ -151,73 +220,88 @@ function App() {
       )
   }
 
+  //----------------------GRAFICO----------------------------
+
+  // Función para actualizar la variable seleccionada
+  const handleVariableChange = (variable: string) => {
+    setSelectedVariable(variable);
+};
+
+// Función para calcular el promedio por día
+const calculateDailyAverage = (data: ItemChart[], variable: string) => {
+  const groupedData: { [date: string]: { sum: number; count: number } } = {};
+
+  // Agrupar por fecha
+  data.forEach((item) => {
+      const date = item.dateS || ""; // Fecha
+      const value = parseFloat(item[variable as keyof ItemChart]?.toString() || "0");
+
+      if (!groupedData[date]) {
+          groupedData[date] = { sum: value, count: 1 };
+      } else {
+          groupedData[date].sum += value;
+          groupedData[date].count += 1;
+      }
+  });
+
+  // Calcular promedio
+  return Object.keys(groupedData).map((date) => ({
+      date,
+      average: groupedData[date].sum / groupedData[date].count,
+  }));
+};
+
+console.log(calculateDailyAverage(items, selectedVariable));
+
+//-------------------------------------------------------------
+
   {/* JSX */ }
 
   return (
+    
+    <div className="app-container">
+      {/* Indicadores del clima */}
+      {weatherData && (
+        <IndicatorGeneral
+          city={weatherData.city}
+          date={weatherData.date}
+          temperature={weatherData.temperature}
+          minTemperature={weatherData.minTemperature}
+          description={weatherData.description}
+          imagen={weatherData.imagen}
+          feelsLike={weatherData.feelsLike}
+        />
+      )}
+    
     <Grid container spacing={5}>
-      {/* Indicadores */}
-      {/* <Grid size={{ xs: 12,md:3, xl: 3 }}>
-      <IndicatorWeather
-        title={"Indicator 1"}
-        subtitle={"Unidad 1"}
-        value={"1.23"}
-      />
-    </Grid>
-    <Grid size={{ xs: 12,md:3, xl: 3 }}>
-      <IndicatorWeather
-        title={"Indicator 1"}
-        subtitle={"Unidad 1"}
-        value={"1.23"}
-      />
-    </Grid>
-    <Grid size={{ xs: 12,md:3, xl: 3 }}>
-      <IndicatorWeather
-        title={"Indicator 1"}
-        subtitle={"Unidad 1"}
-        value={"1.23"}
-      />
-    </Grid>
-    <Grid size={{ xs: 12,md:3, xl: 3 }}>
-      <IndicatorWeather
-        title={"Indicator 1"}
-        subtitle={"Unidad 1"}
-        value={"1.23"}
-      />/
-    </Grid> */}
-
+      {/* Indicadores en dos columnas */}
+    <Grid container size={{ xs: 12, md: 6, xl: 6 }} spacing={1}>
       {renderIndicators()}
+    </Grid>
 
-      {/* {indicators
-                 .map(
-                     (indicator, idx) => (
-                         <Grid key={idx} size={{ xs: 12,md:3, xl: 3 }}>
-                             <IndicatorWeather 
-                                 title={indicator["title"]} 
-                                 subtitle={indicator["subtitle"]} 
-                                 value={indicator["value"]} />
-                         </Grid>
-                     )
-                 )
-                 } */}
-
-      {/*  */}
       {/* Tabla */}
-      <Grid size={{ xs: 12, md: 8, xl: 8 }} container spacing={2}>
+      
         {/*  */}
-        <Grid size={{ xs: 12, md: 3, xl: 3 }}>
-          <ControlWeather />
-        </Grid>
-        <Grid size={{ xs: 12, md: 9, xl: 9 }}>
+        
+        
+        <Grid size={{ xs: 12, md: 6, xl: 6 }}>
           <TableWeather itemsIn={items} />
         </Grid>
-      </Grid>
+        
 
       {/* Gráfico */}
       {/*  */}
-      <Grid size={{ xs: 12, md: 4, xl: 4 }}>
-        <LineChartWeather />
+      <Grid size={{ xs: 12, md: 12, xl: 12 }} container spacing={2}>
+      <Grid size={{ xs: 12, md: 3, xl: 3 }}>
+          <ControlWeather onVariableChange={handleVariableChange} />
+        </Grid>
+      <Grid size={{ xs: 12, md: 9, xl: 9 }}>
+        <LineChartWeather data={calculateDailyAverage(chartItems, selectedVariable)} 
+    variable={selectedVariable} />
       </Grid>
     </Grid>
+    </Grid>
+    </div>
   )
 }
 

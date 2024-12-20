@@ -13,7 +13,11 @@ import FormControl from '@mui/material/FormControl';
 {/* Interfaz SelectChangeEvent */ }
 import Select, { SelectChangeEvent } from '@mui/material/Select';
 
-export default function ControlWeather() {
+interface ControlWeatherProps {
+    onVariableChange: (variable: string) => void; // Prop para comunicar la selección
+}
+
+export default function ControlWeather({ onVariableChange }: ControlWeatherProps) {
 
     {/* Constante de referencia a un elemento HTML */ }
     const descriptionRef = useRef<HTMLDivElement>(null);
@@ -23,9 +27,9 @@ export default function ControlWeather() {
 
     {/* Arreglo de objetos */ }
     let items = [
-        { "name": "Precipitación", "description": "Cantidad de agua que cae sobre una superficie en un período específico." },
-        { "name": "Humedad", "description": "Cantidad de vapor de agua presente en el aire, generalmente expresada como un porcentaje." },
-        { "name": "Nubosidad", "description": "Grado de cobertura del cielo por nubes, afectando la visibilidad y la cantidad de luz solar recibida." }
+        { "name": "Precipitación", "key": "precipitation", "description": "Cantidad de agua que cae sobre una superficie en un período específico." },
+        { "name": "Humedad", "key": "humidity", "description": "Cantidad de vapor de agua presente en el aire, generalmente expresada como un porcentaje." },
+        { "name": "Nubosidad", "key": "clouds", "description": "Grado de cobertura del cielo por nubes, afectando la visibilidad y la cantidad de luz solar recibida." }
     ]
 
     {/* Arreglo de elementos JSX */ }
@@ -36,10 +40,16 @@ export default function ControlWeather() {
 
         let idx = parseInt(event.target.value)
         setSelected(idx);
+        
 
         {/* Modificación de la referencia descriptionRef */ }
         if (descriptionRef.current !== null) {
-            descriptionRef.current.innerHTML = (idx >= 0) ? items[idx]["description"] : ""
+            descriptionRef.current.innerHTML = (idx >= 0) ? items[idx]["description"] : "";
+        }
+
+        // Envía la variable seleccionada al padre
+        if (idx >= 0) {
+            onVariableChange(items[idx]["key"]);
         }
 
     };

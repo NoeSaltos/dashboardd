@@ -6,5 +6,8 @@ export default interface Item {
     precipitation:String;
     humidity: String;
     clouds: String;
+    temperature: string;
+    condition: string;
+   
 
 }
